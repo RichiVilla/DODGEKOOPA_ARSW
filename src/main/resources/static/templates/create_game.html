@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Dodge Koopa - Crear Partida</title>
+    <link rel="icon" href="/images/favicon.png" type="image/png">
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet"> <!-- Fuente de Super Mario -->
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-image: url('/images/background_gif.gif'); /* Ruta de tu imagen de fondo */
+            background-size: cover; /* Ajusta la imagen para cubrir toda la pantalla */
+            background-position: center; /* Centra la imagen */
+            background-color: #f0f0f0;
+            font-family: 'Press Start 2P', cursive; /* Fuente de Super Mario */
+        }
+        h1 {
+            margin-bottom: 20px;
+            color: white; /* Color del título */
+            font-size: 36px; /* Tamaño de la fuente */
+            text-shadow: 2px 2px 0px black; /* Borde negro grueso */
+            animation: blink 1s infinite; /* Animación de titilado */
+        }
+        @keyframes blink {
+            0%, 100% {
+                opacity: 1; /* Totalmente visible */
+            }
+            50% {
+                opacity: 0; /* Totalmente invisible */
+            }
+        }
+        input {
+            padding: 10px;
+            margin: 10px;
+            width: 220px; /* Ajusta el ancho según lo necesites */
+            font-size: 16px; /* Tamaño de la fuente */
+            border: 2px solid #007bff; /* Borde del input */
+            border-radius: 5px; /* Bordes redondeados */
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); /* Sombra para el input */
+            text-align: center; /* Centra el texto dentro del input */
+        }
+        button {
+            padding: 15px 30px; /* Ajusta el tamaño del botón */
+            font-size: 18px;
+            color: white;
+            background-color: #28a745; /* Color verde del botón */
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.3s; /* Transición para el color de fondo y el efecto de transform */
+            font-family: 'Press Start 2P', cursive; /* Usa la fuente de Super Mario */
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Sombra para el botón */
+        }
+        button:hover {
+            background-color: #218838; /* Color verde más oscuro al pasar el ratón */
+            transform: scale(1.05); /* Aumenta el tamaño al pasar el ratón */
+        }
+        #joinButton:disabled {
+            background-color: #cccccc; /* Color de fondo para el botón deshabilitado */
+            cursor: not-allowed; /* Cambia el cursor para indicar que no se puede hacer clic */
+        }
+        .error {
+            color: red;
+            margin-top: 10px;
+        }
+        a {
+            margin-top: 20px;
+            font-size: 14px;
+            color: white;
+            background-color: #28a745; /* Color verde */
+            padding: 10px 20px;
+            border-radius: 5px;
+            text-decoration: none; /* Sin subrayado */
+            transition: background-color 0.3s, transform 0.3s; /* Transición para el color de fondo y el efecto de transform */
+            font-family: 'Press Start 2P', cursive; /* Usa la fuente de Super Mario */
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Sombra para el enlace */
+        }
+        a:hover {
+            background-color: #218838; /* Color verde más oscuro al pasar el ratón */
+            transform: scale(1.05); /* Aumenta el tamaño al pasar el ratón */
+        }
+    </style>
+</head>
+<body>
+<h1>Crear Partida</h1>
+<input type="text" id="gameCode" placeholder="Código de la partida" required maxlength="6"> <!-- Aquí se agregó maxlength -->
+<button id="joinButton" disabled>Unirse</button>
+<div class="error" id="errorMessage"></div>
+
+<script>
+    const gameCodeInput = document.getElementById('gameCode');
+    const joinButton = document.getElementById('joinButton');
+    const errorMessage = document.getElementById('errorMessage');
+
+    const validGameCodes = ['ABC123', 'XYZ789']; // Ejemplo de códigos válidos
+    const maxPlayers = 4; // Número máximo de jugadores permitidos
+    let currentPlayers = 0; // Jugadores actuales en la partida
+
+    // Función para verificar el código de la partida
+    gameCodeInput.addEventListener('input', () => {
+        const code = gameCodeInput.value;
+        errorMessage.textContent = '';
+
+        // Habilitar botón si el código tiene exactamente 6 caracteres y es válido
+        if (code.length === 6) {
+            joinButton.disabled = false; // Habilitar botón
+        } else {
+            joinButton.disabled = true; // Deshabilitar botón
+        }
+    });
+
+    // Función para manejar el evento del botón "Unirse"
+    joinButton.addEventListener('click', () => {
+        const code = gameCodeInput.value;
+
+        if (!validGameCodes.includes(code)) {
+            alert('Código inválido.'); // Mostrar mensaje de error
+            return;
+        }
+
+        if (currentPlayers >= maxPlayers) {
+            errorMessage.textContent = 'La partida está llena.';
+            joinButton.disabled = true; // Deshabilitar botón
+            return;
+        }
+
+        // Simular unirse a la partida
+        currentPlayers++;
+        alert('Te has unido a la partida.'); // Mensaje de éxito
+        window.location.href = 'waiting_room.html'; // Redirigir a la sala de espera
+    });
+</script>
+
+<a href="/">Volver a la página principal</a>
+</body>
+</html>

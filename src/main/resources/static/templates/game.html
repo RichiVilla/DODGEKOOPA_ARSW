@@ -1,0 +1,1145 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Dodge Koopa</title>
+    <link rel="icon" href="/images/favicon.png" type="image/png"> <!-- Ajusta la ruta según tu estructura -->
+    <style>
+
+        #gameBoard {
+    position: relative;
+    width: 500px;
+    height: 500px;
+    background-color: #e0e0e0;
+    border: 2px solid #333;
+    overflow: hidden;
+}
+.ball {
+    width: 30px;
+    height: 30px;
+    position: absolute;
+}
+
+
+
+/* Estilo para los botones */
+button {
+padding: 15px 30px;
+font-size: 18px;
+color: white;
+background-color: green; /* Color verde del botón */
+border: none;
+border-radius: 5px;
+cursor: pointer;
+transition: background-color 0.3s;
+font-family: 'Press Start 2P', cursive; /* Usa la fuente retro */
+animation: blink 1s infinite;
+}
+
+button:hover {
+background-color: #45a049; /* Color de fondo al pasar el ratón */
+}
+
+button:disabled {
+    background-color: gray !important;
+    cursor: not-allowed;
+}
+
+/* Estilo para los cuadros de texto */
+input-text {
+width: 100%; /* Ancho completo */
+padding: 15px; /* Espaciado interno */
+margin: 4px 0; /* Espaciado entre cuadros */
+border: 2px solid #4CAF50; /* Borde verde */
+border-radius: 5px; /* Bordes redondeados */
+box-sizing: border-box; /* Incluir padding y border en el ancho total */
+font-size: 16px; /* Tamaño de la fuente */
+font-family: 'Press Start 2P', cursive;
+transition: border-color 0.3s; /* Transición suave para el borde */
+}
+
+input-text:focus {
+border-color: #45a049; /* Color del borde al enfocar */
+outline: none; /* Sin contorno al enfocar */
+font-family: 'Press Start 2P', cursive;
+}
+
+body {
+display: flex;
+flex-direction: row;
+justify-content: center;
+align-items: flex-start;
+margin: 20px;
+background-image: url('/images/background_gif.gif'); /* Ruta de tu imagen de fondo */
+background-size: cover; /* Ajusta la imagen para cubrir toda la pantalla */
+background-position: center; /* Centra la imagen */
+background-color: gray; /* Cambia el color de fondo aquí */
+font-family: 'Press Start 2P', cursive;
+}
+#grid {
+display: grid;
+grid-template-columns: repeat(11, 50px);
+grid-template-rows: repeat(10, 50px);
+gap: 2px;
+border: 2px dotted gray;
+margin-right: 20px;
+}
+.cell {
+width: 50px;
+height: 50px;
+border: 1px dotted gray;
+background-image: url('/images/floor.jpg'); /* Agrega la imagen de fondo aquí */
+background-size: cover; /* Ajusta el tamaño de la imagen */
+background-position: center; /* Centra la imagen */
+position: relative;
+}
+.obstacle {
+background-image: url('/images/barrier.webp'); /* Agrega la imagen de fondo aquí */
+background-size: cover; /* Ajusta el tamaño de la imagen */
+background-position: center; /* Centra la imagen */
+}
+.player {
+width: 40px;
+height: 40px;
+border-radius: 50%;
+position: absolute;
+top: 50%;
+left: 50%;
+transform: translate(-50%, -50%);
+}
+#chatContainer {
+display: flex;
+flex-direction: column;
+align-items: center;
+}
+#chat {
+width: 300px;
+height: 200px;
+margin-bottom: 20px;
+resize: none;
+overflow-y: auto;
+}
+#messageContainer {
+display: flex;
+flex-direction: row;
+align-items: center;
+}
+#message {
+width: 200px;
+margin-right: 10px;
+}
+
+#countdown {
+font-size: 24px;
+font-weight: bold;
+margin-top: 10px;
+display: none; /* Oculto por defecto hasta que comience el conteo */
+}
+#usernameContainer {
+display: flex;
+flex-direction: column;
+align-items: center;
+}
+#username {
+margin-top: 10px;
+margin-bottom: 10px;
+}
+#playerName {
+font-weight: bold;
+margin-bottom: 10px; /* Espaciado entre el nombre y el cuadro de texto */
+}
+
+
+
+
+
+    </style>
+
+
+
+
+    <script>
+        let username = ""; // Variable para almacenar el nombre del usuario
+        const gridCells = [];
+        let playerPosition = -1; // Para rastrear la posición actual del jugador
+        let playerColor = ""; // Color del jugador
+        let socket;
+        let canMove = false; // Los jugadores no pueden moverse hasta que el conteo termine
+        const players = {}; // Objeto para rastrear a todos los jugadores y sus posiciones
+        const obstacles = []; // Array para almacenar las posiciones de los obstáculos (columna central)
+        const readyPlayers = new Set(); // Para rastrear los jugadores que han hecho clic en "Listo"
+        let countdownValue = 10; // Valor inicial del conteo regresivo
+        let countdownInterval; // Intervalo del conteo
+
+
+// //////////////////
+let totalPlayersReady = 0; // Para rastrear cuántos jugadores están listos
+let totalPlayers = 0; // Inicializa la variable totalPlayers
+let playerStates = {};
+let hasBall = false; // Almacena si el
+
+let isBallOnBoard = true; // Estado de la pelota en el tablero
+let ballPosition = 5; // Cambia a la posición inicial de la pelota en el tablero
+let ballMoving = false;
+let isBallActive = true;
+let currentBallOwner = null;
+let isLaunched = false;
+// ///////////////////
+
+
+
+
+
+function placeBall() {
+    // Generar una posición aleatoria que no esté ocupada por obstáculos o jugadores
+    let newPosition;
+    do {
+        newPosition = Math.floor(Math.random() * gridCells.length);
+    } while (isPositionOccupied(newPosition) || isObstacle(newPosition));
+
+    ballPosition = newPosition;
+    isBallOnBoard = true;
+    updateGrid();
+}
+
+       function setUsername() {
+    const nameInput = document.getElementById("username");
+    username = nameInput.value;
+    playerColor = getRandomColor(); // Obtener un color aleatorio para el jugador
+    document.getElementById("usernameContainer").style.display = "none"; // Ocultar el contenedor de nombre
+    document.getElementById("playerName").textContent = `Jugador: ${username}`; // Mostrar el nombre del jugador
+
+     // Enviar una solicitud de asignación al servidor
+    socket.send(JSON.stringify({
+        type: "assignTeamAndPosition",
+        username: username
+    }));
+
+    socket.send(JSON.stringify({
+        type: "roomCode",
+        roomCodeValue: generateRoomCode()
+    }));
+
+    addPlayerToGrid(); // Añadir al jugador al tablero
+
+
+    // Notificar al servidor que un nuevo jugador se ha unido
+    const newPlayerUpdate = {
+        username: username,
+        totalPlayers: totalPlayers, // Enviar la cantidad total de jugadores al servidor
+    };
+    socket.send(JSON.stringify(newPlayerUpdate)); // Enviar la información al servidor
+}
+
+
+
+
+        function createGrid() {
+    const gridContainer = document.getElementById("grid");
+    for (let i = 0; i < 110; i++) { // 11x10 = 110 celdas
+        const cell = document.createElement("div");
+        cell.className = "cell";
+
+        // Si es la columna 6 (índice 5 en un array de 0 a 10), marcarla como obstáculo
+        if (i % 11 === 5) {
+            cell.classList.add("obstacle");
+            obstacles.push(i); // Agregar la posición al array de obstáculos
+        }
+
+        gridCells.push(cell);
+        gridContainer.appendChild(cell);
+    }
+}
+
+
+
+/////////////////////////////
+
+
+
+
+const team1Positions = []; // Para el equipo 1 (columnas 1 a 5)
+const team2Positions = []; // Para el equipo 2 (columnas 7 a 11)
+const NUM_COLUMNS = 11;
+const NUM_ROWS = 10;
+let teamTurn = 0; // Contador para alternar entre equipos
+
+// Generar posiciones para cada equipo basadas en las columnas
+for (let row = 0; row < NUM_ROWS; row++) {
+    for (let col = 0; col < NUM_COLUMNS; col++) {
+        let pos = row * NUM_COLUMNS + col;
+        if (col >= 0 && col <= 4) {
+            team1Positions.push(pos); // Columnas 1 a 5 para el equipo 1
+        } else if (col >= 6 && col <= 10) {
+            team2Positions.push(pos); // Columnas 7 a 11 para el equipo 2
+        }
+    }
+}
+
+const assignedPositions = new Set(); // Para evitar posiciones duplicadas
+
+function addPlayerToGrid() {
+    let assignedPosition;
+    let half; // Para indicar en qué mitad se colocará el jugador
+
+    // Elegir aleatoriamente entre mitad izquierda (0) o mitad derecha (1)
+    half = Math.random() < 0.5 ? 'left' : 'right';
+
+    // Seleccionar una posición aleatoria en la mitad correspondiente
+    if (half === 'left') {
+        const availablePositions = team1Positions.filter(pos => !assignedPositions.has(pos));
+        assignedPosition = availablePositions[Math.floor(Math.random() * availablePositions.length)];
+    } else {
+        const availablePositions = team2Positions.filter(pos => !assignedPositions.has(pos));
+        assignedPosition = availablePositions[Math.floor(Math.random() * availablePositions.length)];
+    }
+
+    // Verificar si se encontró una posición disponible
+    if (assignedPosition === undefined) {
+        alert("No hay posiciones disponibles en esta mitad.");
+        return;
+    }
+
+    // Marcar la posición como ocupada y registrar la información del jugador
+    assignedPositions.add(assignedPosition);
+    playerPosition = assignedPosition;
+    players[username] = { position: playerPosition, color: playerColor, half };
+
+    updateGrid();
+    notifyPlayerPosition();
+}
+
+
+
+
+/////////////////////////////
+
+        function movePlayer(direction) {
+    if (!canMove) return; // Evitar el movimiento hasta que el conteo termine
+
+    let newPosition = playerPosition;
+
+    // Calcular la nueva posición en función de la dirección
+    switch (direction) {
+        case 'ArrowUp':
+            if (playerPosition >= 11) newPosition -= 11; // Mover hacia arriba
+            break;
+        case 'ArrowDown':
+            if (playerPosition < 99) newPosition += 11; // Mover hacia abajo
+            break;
+        case 'ArrowLeft':
+            if (playerPosition % 11 !== 0) newPosition -= 1; // Mover hacia la izquierda
+            break;
+        case 'ArrowRight':
+            if (playerPosition % 11 !== 10) newPosition += 1; // Mover hacia la derecha
+            break;
+        default:
+            return; // No hacer nada si la tecla no es una flecha
+    }
+
+    if (isObstacle(newPosition)) {
+        console.log("Colisión con un obstáculo. Movimiento bloqueado.");
+        return; // Bloquear el movimiento
+    }
+
+    // Verificar si la nueva posición está ocupada solo por jugadores
+    if (!isPositionOccupied(newPosition)) {
+        // Actualizar la posición del jugador si la posición no está ocupada
+        players[username].position = newPosition;
+        playerPosition = newPosition;
+
+        // Si el jugador recoge la pelota, asignarla al jugador
+        if (playerPosition === ballPosition && isBallOnBoard && !isLaunched) {
+            currentBallOwner = username;
+            grabBall();
+            playSound();
+
+
+
+
+
+            // Mostrar mensaje en el chat
+            const ballMessage = {
+                username: 'Sistema',
+                text: `${username} recogió la pelota!`
+            };
+            receiveMessage(ballMessage);
+        }
+
+        updateGrid(); // Actualizar el tablero
+        notifyPlayerPosition(); // Notificar la nueva posición a los otros jugadores
+        console.log(`Posición del jugador: ${playerPosition}`); // Para depuración
+    }
+}
+function playSound() {
+    const audio = new Audio('/sounds/kick_shell.m4a'); // Cambia la ruta según donde esté tu archivo
+    audio.play();
+}
+
+
+        function notifyPlayerPosition() {
+            const positionUpdate = {
+                username: username,
+                position: playerPosition,
+                color: playerColor
+            };
+        }
+
+        function receivePlayerPosition(data) {
+            const { username, position, color } = data;
+            players[username] = { position: position, color: color }; // Actualizar la posición de otros jugadores
+            updateGrid(); // Actualizar el tablero con la nueva posición
+        }
+
+        function updateGrid() {
+    // Limpiar todas las celdas
+    gridCells.forEach(cell => {
+        cell.innerHTML = "";
+
+    });
+
+    // Colocar a todos los jugadores en sus posiciones correspondientes
+    Object.keys(players).forEach(playerUsername => {
+        const { position, color } = players[playerUsername];
+        if (position >= 0 && position < gridCells.length) {
+            const cell = gridCells[position];
+            const playerDiv = document.createElement("div");
+            playerDiv.className = "player";
+            playerDiv.style.backgroundColor = color;
+            playerDiv.setAttribute("data-username", playerUsername);
+            cell.appendChild(playerDiv);
+        }
+    });
+
+    // Colocar la pelota sin añadir clases que la consideren un obstáculo
+    if (isBallOnBoard && ballPosition >= 0) {
+        const ballCell = gridCells[ballPosition];
+        const ballDiv = document.createElement("div");
+        ballDiv.className = "ball"; // Clase que no debe incluir estilos de colisión
+        ballDiv.style.backgroundImage = "url('/images/favicon.png')";
+        ballDiv.style.backgroundSize = "cover";
+        ballDiv.style.position = "absolute";
+        ballDiv.style.top = "50%";
+        ballDiv.style.left = "50%";
+        ballDiv.style.transform = "translate(-50%, -50%)";
+        ballCell.appendChild(ballDiv);
+    }
+}
+
+
+
+
+
+        function getRandomColor() {
+            const letters = '0123456789ABCDEF';
+            let color = '#';
+            for (let i = 0; i < 6; i++) {
+                color += letters[Math.floor(Math.random() * 16)];
+            }
+            return color; // Generar un color aleatorio
+        }
+
+        function isPositionOccupied(position) {
+    // Verifica si algún jugador está en esta posición
+    return Object.values(players).some(player => player.position === position);
+}
+
+
+
+        function isObstacle(position) {
+            // Verificar si la posición es una casilla negra (obstáculo)
+            return obstacles.includes(position);
+        }
+
+        function sendMessage() {
+            const messageInput = document.getElementById("message");
+            const message = messageInput.value.trim(); // Eliminar espacios en blanco
+
+            if (username === "") {
+                alert("Por favor, ingresa tu nombre antes de enviar un mensaje.");
+                return;
+            }
+
+            if (message === "") return; // Evitar enviar mensajes vacíos
+
+            // Crear un objeto con el nombre y el mensaje
+            const messageObject = {
+                username: username,
+                text: message
+            };
+
+            // Verificar si el WebSocket está abierto antes de enviar
+            if (socket.readyState === WebSocket.OPEN) {
+                console.log("Enviando mensaje:", messageObject);
+                socket.send(JSON.stringify(messageObject)); // Enviar el mensaje a todos los jugadores
+            } else {
+                console.warn("WebSocket no está abierto. Estado actual: " + socket.readyState);
+            }
+
+            messageInput.value = ""; // Limpiar el campo de entrada
+        }
+
+        function receiveMessage(data) {
+            const chat = document.getElementById("chat");
+            chat.value += `${data.username}: ${data.text}\n`; // Mostrar el mensaje en el chat
+            chat.scrollTop = chat.scrollHeight; // Desplazarse hacia abajo automáticamente
+        }
+
+     function toggleReady() {
+    const readyButton = document.getElementById("readyButton");
+
+    if (playerStates[username] === true) {
+        // Si ya está listo, lo quitamos
+        playerStates[username] = false;
+        readyButton.textContent = "Listo";
+        readyButton.disabled = false;
+    } else {
+        // Marcamos al jugador como listo
+        playerStates[username] = true;
+        readyButton.disabled = true; // Deshabilitar el botón, cambiando a gris
+
+        // Notificar el estado "Listo" a otros jugadores
+        const readyStatusUpdate = {
+            username: username,
+            ready: true
+        };
+        socket.send(JSON.stringify(readyStatusUpdate));
+
+        // Mensaje del sistema
+        const systemMessage = {
+            username: "Sistema",
+            text: `Jugador ${username} ya está listo para jugar`
+        };
+        socket.send(JSON.stringify(systemMessage));
+    }
+
+    // Verificamos si todos los jugadores están listos
+    checkAllPlayersReady();
+}
+
+
+
+function checkAllPlayersReady() {
+    const totalPlayers = Object.keys(playerStates).length; // Número total de jugadores
+    const totalReady = Object.values(playerStates).filter(state => state).length; // Número de jugadores listos
+
+    // Si todos están listos, enviamos el mensaje de inicio de cuenta regresiva al servidor
+    if (totalReady === totalPlayers && totalPlayers > 0) {
+        const countdownMessage = {
+            action: "startCountdown"
+        };
+        socket.send(JSON.stringify(countdownMessage)); // Enviar el mensaje al servidor
+    }
+}
+
+
+
+        function startCountdown() {
+    if (countdownInterval) clearInterval(countdownInterval); // Limpiar cualquier conteo anterior
+    document.getElementById("countdown").style.display = "block"; // Mostrar el conteo
+    countdownValue = 10; // Reiniciar el conteo
+    updateCountdownDisplay(); // Mostrar el conteo inicial
+
+    countdownInterval = setInterval(() => {
+        countdownValue--;
+        updateCountdownDisplay(); // Actualizar el conteo en la interfaz
+
+        if (countdownValue <= 0) {
+            clearInterval(countdownInterval); // Detener el conteo
+            canMove = true; // Permitir que los jugadores se muevan
+            document.getElementById("countdown").style.display = "none"; // Ocultar el conteo
+            console.log("El conteo ha terminado, los jugadores pueden moverse."); // Mostrar mensaje en consola
+        }
+    }, 1000);
+}
+
+        function updateCountdownDisplay() {
+            document.getElementById("countdown").textContent = `¡Comienza en: ${countdownValue}s!`; // Actualizar el texto del conteo
+        }
+////////////////////////////////
+window.onload = () => {
+    // Primero establecemos las variables básicas
+    username = localStorage.getItem('username') || 'Jugador';
+    playerColor = getRandomColor();
+    document.getElementById("playerName").textContent = `Jugador: ${username}`;
+
+    createGrid();
+    placeBall();
+
+    const protocol = window.location.protocol === "https:" ? "wss" : "ws";  // Selecciona ws o wss
+const socketUrl = `${protocol}://${window.location.host}/chat`;  // Usa el host dinámico
+socket = new WebSocket(socketUrl);  // Inicia el WebSocket con la URL
+     socket.onopen = () => {
+        console.log("Conectado al servidor WebSocket");
+        addPlayerToGrid();
+    };
+
+window.onbeforeunload = () => {
+    // Verificar si la conexión está abierta antes de enviar el mensaje de desconexión
+    if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({
+            type: "disconnect",
+            username: username
+        }));
+    }
+    // Cerrar el socket explícitamente
+    socket.close();
+};
+
+
+socket.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            console.log("Datos recibidos:", data);
+
+              if (data.type === "roomCode") {
+        console.log("Código de sala recibido:", data.roomCodeValue);
+        document.getElementById("roomCodeValue").textContent = data.roomCodeValue;
+    }
+
+
+ if (data.type === "disconnect") {
+            // Remover al jugador de la lista y de la cuadrícula
+            delete players[data.username];
+            updateGrid(); // Actualizar la cuadrícula para reflejar los cambios
+        }
+
+         if (data.type === "playerEliminated") {
+            delete players[data.username];
+            updateGrid();
+
+            // Si el propio jugador ha sido eliminado, muestra el mensaje de derrota
+            if (data.username === username) {
+                showDefeatMessage();
+            }
+        }
+
+            if (data.type === 'ballUpdate') {
+                ballPosition = data.position;
+                isBallOnBoard = true;
+                updateGrid();
+            } else if (data.action === "startCountdown") {
+                startCountdown();
+            } else if (data.text) {
+                receiveMessage(data);
+            } else if (data.position !== undefined && data.type !== 'ballUpdate') {
+                receivePlayerPosition(data);
+            } else if (data.ready !== undefined) {
+                const playerUsername = data.username;
+                const readyState = data.ready;
+
+                if (readyState) {
+                    readyPlayers.add(playerUsername);
+                } else {
+                    readyPlayers.delete(playerUsername);
+                }
+
+                if (playerUsername === username) {
+                    const playerReadyButton = document.getElementById("readyButton");
+                    playerReadyButton.disabled = readyState;
+                }
+
+                if (readyPlayers.size === totalPlayers) {
+                    startCountdown();
+                }
+            }
+
+            switch (data.type) {
+            case 'ballUpdate':
+                ballPosition = data.position;
+                currentBallOwner = data.owner;
+                isLaunched = data.launched;
+                isBallOnBoard = true;
+                updateGrid();
+                break;
+
+            case 'ballMove':
+                ballPosition = data.position;
+                isLaunched = data.launched;
+                updateGrid();
+                break;
+
+            case 'ballLaunch':
+                ballPosition = data.position;
+                currentBallOwner = data.owner;
+                isLaunched = true;
+                updateGrid();
+                break;
+
+            case 'ballFinish':
+                if (currentBallOwner === username) {
+                    resetBall();
+                }
+                break;
+
+            case 'ballReset':
+                ballPosition = data.position;
+                currentBallOwner = null;
+                isBallOnBoard = true;
+                isBallActive = true;
+                ballMoving = false;
+                isLaunched = data.launched;
+                updateGrid();
+                break;
+
+            case 'ballPickup':
+                if (!isLaunched) {
+                    currentBallOwner = data.username;
+                    ballPosition = data.position;
+                    updateGrid();
+                }
+                break;
+
+}
+
+        } catch (error) {
+            console.error("Error procesando mensaje:", error);
+        }
+    };
+
+    socket.onerror = (error) => {
+        console.error("Error en WebSocket:", error);
+    };
+
+    socket.onclose = () => {
+    if (socket.readyState === WebSocket.CLOSING || socket.readyState === WebSocket.CLOSED) {
+        console.log("Conexión cerrada. Notificando al servidor de la desconexión.");
+        socket.send(JSON.stringify({
+            type: "disconnect",
+            username: username
+        }));
+    }
+        console.log("Conexión cerrada con el servidor WebSocket");
+    };
+
+if (data.type === 'ballUpdate') {
+        ballPosition = data.position;
+        isBallOnBoard = true;
+        updateGrid(); // Actualizar la cuadrícula con la nueva posición de la pelota
+    }
+
+        if (data.action === "startCountdown") {
+            startCountdown(); // Comenzar el countdown cuando el servidor lo indique
+        }
+
+        if (data.text) {
+            receiveMessage(data); // Mostrar el mensaje en el chat
+        } else if (data.position !== undefined) { // Si se recibe la posición de un jugador
+            receivePlayerPosition(data); // Actualizar la posición de otros jugadores
+        } else if (data.ready !== undefined) { // Si se recibe el estado de "Listo"
+            const playerUsername = data.username;
+            const readyState = data.ready;
+
+            // Actualizar el estado de los jugadores en el conjunto de listos
+            if (readyState) {
+                readyPlayers.add(playerUsername);
+            } else {
+                readyPlayers.delete(playerUsername);
+            }
+
+            // Actualizar solo el botón "Listo" del jugador correspondiente
+            if (playerUsername == username) { // No afectar el propio botón
+                const playerReadyButton = document.getElementById("readyButton");
+                playerReadyButton.disabled = readyState; // Deshabilitar si está listo
+            }
+
+            // Verificar si todos los jugadores están listos y comenzar el conteo
+            if (readyPlayers.size === totalPlayers) {
+                startCountdown(); // Iniciar el conteo si todos están listos
+            }
+        } else if (data.position !== undefined && data.type !== 'ballUpdate') {
+        receivePlayerPosition(data);
+    } else if (data.ready !== undefined) {
+        handlePlayerReady(data);
+    }
+    };
+
+     function renderBall(x, y) {
+        const ballElement = document.createElement("img");
+        ballElement.src = "ruta/a/tu/imagen_de_pelota.png"; // Cambia por la ruta de tu imagen
+        ballElement.className = "ball";
+        ballElement.style.left = `${x}px`;
+        ballElement.style.top = `${y}px`;
+        ballElement.id = "uniqueBall";
+        document.getElementById("gameBoard").appendChild(ballElement);
+    }
+
+    // Control de teclas para mover al jugador
+    document.addEventListener('keydown', (event) => {
+        movePlayer(event.key);
+    });
+
+            socket.onclose = () => {
+        console.log("Conexión cerrada con el servidor WebSocket");
+    };
+
+    // Control de teclas para mover al jugador
+    document.addEventListener('keydown', (event) => {
+        movePlayer(event.key);
+    });
+
+
+
+
+////////////////////////////////////////////////////////////////
+
+
+function grabBall() {
+const NUM_COLUMNS = 11; // Define el número de columnas en tu tablero
+    const column = (ballPosition % NUM_COLUMNS); // Calcula la columna actual (0-10)
+
+    // Verifica la posición de la columna
+    if (column >= 0 && column <= 4) { // Columnas 1 a 5 (0-4 en índice)
+        moveBallRight(); // Mueve a la derecha
+    } else if (column >= 6 && column <= 10) { // Columnas 7 a 11 (6-10 en índice)
+        moveBallLeft();
+    } else {
+        console.log("Columna fuera de rango."); // Mensaje de error
+    }
+}
+
+function moveBallRight() {
+    if (!isBallActive || ballMoving || currentBallOwner !== username) {
+        return;
+    }
+
+    ballMoving = true;
+    isBallActive = false;
+    isLaunched = true;
+
+    const moveInterval = setInterval(() => {
+        if (ballPosition < gridCells.length - 1 && (ballPosition + 1) % 11 !== 0) {
+            const newPosition = ballPosition + 1;
+
+            // Verificar colisión con jugadores
+            const collidedPlayer = Object.keys(players).find(playerUsername => players[playerUsername].position === newPosition);
+            if (collidedPlayer) {
+                // Notificar al servidor que el jugador ha sido eliminado
+                socket.send(JSON.stringify({
+                    type: "playerEliminated",
+                    username: collidedPlayer
+                }));
+
+                // Si el jugador eliminado es el propio usuario
+                if (collidedPlayer === username) {
+                    showDefeatMessage(); // Mostrar el mensaje de "Perdiste!"
+                }
+
+                clearInterval(moveInterval);
+                finishBallMovement(); // Detener la pelota después de eliminar al jugador
+                return;
+            }
+
+            // Enviar posición de movimiento de la pelota al servidor
+            socket.send(JSON.stringify({
+                type: 'ballMove',
+                position: newPosition,
+                launched: true
+            }));
+
+            ballPosition = newPosition;
+            updateGrid();
+        } else {
+            stopBall();
+            clearInterval(moveInterval);
+            finishBallMovement();
+        }
+    }, 100);
+}
+
+function moveBallLeft() {
+    if (!isBallActive || ballMoving || currentBallOwner !== username) {
+        return;
+    }
+
+    ballMoving = true;
+    isBallActive = false;
+    isLaunched = true;
+
+    const moveInterval = setInterval(() => {
+        if (ballPosition > 0 && ballPosition % 11 !== 0) {
+            const newPosition = ballPosition - 1;
+
+            // Verificar colisión con jugadores
+            const collidedPlayer = Object.keys(players).find(playerUsername => players[playerUsername].position === newPosition);
+            if (collidedPlayer) {
+                // Notificar al servidor que el jugador ha sido eliminado
+                socket.send(JSON.stringify({
+                    type: "playerEliminated",
+                    username: collidedPlayer
+                }));
+
+                // Si el jugador eliminado es el propio usuario
+                if (collidedPlayer === username) {
+                    showDefeatMessage(); // Mostrar el mensaje de "Perdiste!"
+                }
+
+                clearInterval(moveInterval);
+                finishBallMovement(); // Detener la pelota después de eliminar al jugador
+                return;
+            }
+
+            // Enviar posición de movimiento de la pelota al servidor
+            socket.send(JSON.stringify({
+                type: 'ballMove',
+                position: newPosition,
+                launched: true
+            }));
+
+            ballPosition = newPosition;
+            updateGrid();
+        } else {
+            clearInterval(moveInterval);
+            finishBallMovement();
+        }
+    }, 100);
+}
+
+
+function stopBall() {
+    ballMoving = false; // Detiene el movimiento de la pelota
+}
+
+function deactivateBallCollision() {
+    ballCollidable = false; // Cambia el estado de colisión de la pelota
+
+    // Remover clases o propiedades de colisión
+    const ballCell = gridCells[ballPosition];
+    ballCell.classList.remove("obstacle");
+    ballCell.classList.remove("collidable");
+    ballCell.classList.remove("ball");
+
+    console.log("La pelota ha dejado de ser colisionable.");
+}
+
+function showDefeatMessage() {
+    // Crear un fondo superpuesto oscuro
+    const defeatOverlay = document.createElement("div");
+    defeatOverlay.style.position = "fixed";
+    defeatOverlay.style.top = 0;
+    defeatOverlay.style.left = 0;
+    defeatOverlay.style.width = "100%";
+    defeatOverlay.style.height = "100%";
+    defeatOverlay.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
+    defeatOverlay.style.display = "flex";
+    defeatOverlay.style.flexDirection = "column";
+    defeatOverlay.style.justifyContent = "center";
+    defeatOverlay.style.alignItems = "center";
+    defeatOverlay.style.zIndex = 1000;
+
+    // Crear el mensaje de eliminación
+    const defeatMessage = document.createElement("div");
+    defeatMessage.textContent = "!Has sido eliminado!";
+    defeatMessage.style.color = "white";
+    defeatMessage.style.fontSize = "48px";
+    defeatMessage.style.fontFamily = "'Press Start 2P', cursive";
+    defeatMessage.style.marginBottom = "20px";
+    defeatOverlay.appendChild(defeatMessage);
+
+    // Crear el botón para volver al menú principal
+    const returnButton = document.createElement("button");
+    returnButton.textContent = "Volver al menú principal";
+    returnButton.style.padding = "15px 30px";
+    returnButton.style.fontSize = "18px";
+    returnButton.style.color = "white";
+    returnButton.style.backgroundColor = "#007bff";
+    returnButton.style.border = "none";
+    returnButton.style.borderRadius = "5px";
+    returnButton.style.cursor = "pointer";
+    returnButton.style.fontFamily = "'Press Start 2P', cursive";
+    returnButton.style.transition = "background-color 0.3s";
+
+    // Cambiar color del botón al pasar el cursor
+    returnButton.onmouseover = () => returnButton.style.backgroundColor = "#0056b3";
+    returnButton.onmouseout = () => returnButton.style.backgroundColor = "#007bff";
+
+    // Agregar función para redirigir al menú principal al hacer clic
+    returnButton.onclick = () => {
+        window.location.href = "/"; // Cambia esta ruta según tu estructura de archivos
+    };
+
+    defeatOverlay.appendChild(returnButton);
+
+    document.body.appendChild(defeatOverlay);
+}
+
+
+function finishBallMovement() {
+    // Notificar al servidor que la pelota ha finalizado el movimiento
+    socket.send(JSON.stringify({
+        type: 'ballFinish',
+        lastPosition: ballPosition
+    }));
+
+    // Colocar la pelota en una posición aleatoria en la mitad donde se detuvo
+    placeBallInSameHalf();
+
+    // Colocar la pelota en el estado recogible nuevamente
+    isBallOnBoard = true; // Hace que la pelota esté en el tablero y pueda ser recogida nuevamente
+    allowCollectBall();
+}
+
+
+function placeBallInSameHalf() {
+    // Determinar en cuál mitad está la pelota actualmente
+    const isLeftHalf = ballPosition % 11 < 5; // Columnas 0-4 son la mitad izquierda
+
+    // Obtener las posiciones disponibles en la mitad correspondiente
+    const availablePositions = (isLeftHalf ? team1Positions : team2Positions)
+        .filter(pos => !isPositionOccupied(pos) && !isObstacle(pos)); // Excluir posiciones ocupadas y obstáculos
+
+    // Seleccionar una posición aleatoria en la mitad correspondiente
+    if (availablePositions.length > 0) {
+        ballPosition = availablePositions[Math.floor(Math.random() * availablePositions.length)];
+        updateGrid();
+
+        // Notificar a todos los jugadores la nueva posición de la pelota
+        socket.send(JSON.stringify({
+            type: 'ballUpdate',
+            position: ballPosition
+        }));
+    } else {
+        console.log("No hay posiciones libres en la mitad donde se detuvo la pelota.");
+    }
+}
+
+function placeBallNearby() {
+    const adjacentPositions = [
+        ballPosition - 11, // Arriba
+        ballPosition + 11, // Abajo
+        ballPosition - 22,  // Izquierda
+        ballPosition + 22   // Derecha
+    ];
+
+    // Buscar una posición libre que no sea obstáculo ni esté ocupada
+    for (let pos of adjacentPositions) {
+        if (pos >= 0 && pos < gridCells.length && !isObstacle(pos) && !isPositionOccupied(pos)) {
+            ballPosition = pos;
+            updateGrid();
+
+            // Notificar a todos los jugadores la nueva posición de la pelota
+            socket.send(JSON.stringify({
+                type: 'ballUpdate',
+                position: ballPosition
+            }));
+            return;
+        }
+    }
+
+    // Si no hay posiciones adyacentes libres, la pelota se queda en su posición actual
+    console.log("No hay posiciones adyacentes libres, la pelota se queda en su posición actual.");
+}
+
+
+
+
+
+
+function resetBall() {
+    ballMoving = false;
+    isBallActive = true; // Permite recoger la pelota de nuevo
+    currentBallOwner = null; // Elimina al dueño de la pelota
+    isLaunched = false;
+    isBallOnBoard = true;
+
+    refreshBall(); // Coloca la pelota en el tablero sin colisiones
+    console.log("La pelota ha sido reiniciada y está lista para ser recogida.");
+}
+
+
+
+
+
+
+function refreshBall() {
+    isBallOnBoard = true;
+    updateGrid(); // Coloca la pelota visualmente en el tablero sin colisiones
+    allowCollectBall();
+}
+
+
+
+
+
+function allowCollectBall() {
+    if (isBallOnBoard && playerPosition === ballPosition) {
+        grabBall();
+        console.log("La pelota está disponible y ha sido recogida en la misma posición.");
+    }
+}
+
+
+
+function collectBall() {
+    // Verifica si la pelota está activa y en el tablero
+    if (isBallOnBoard && isBallActive && playerPosition === ballPosition) {
+        grabBall(); // Asigna la pelota al jugador
+        isBallOnBoard = false; // Actualiza el estado de la pelota
+        console.log("Pelota recogida!");
+    } else {
+        console.log("No se puede recoger la pelota. Estado actual:", { isBallOnBoard, isBallActive, playerPosition, ballPosition });
+    }
+}
+
+
+
+
+// Función para actualizar el estado de la pelota
+function updateBallState(newPosition, newOwner) {
+    ballPosition = newPosition;
+    currentBallOwner = newOwner;
+    isBallOnBoard = true;
+    isLaunched = newLaunchState;
+    updateGrid();
+
+    // Notificar a todos los clientes sobre el nuevo estado de la pelota
+    socket.send(JSON.stringify({
+        type: 'ballUpdate',
+        position: newPosition,
+        owner: newOwner,
+        launched: newLaunchState
+    }));
+}
+
+function generateRoomCode() {
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let code = '';
+    for (let i = 0; i < 6; i++) {
+        code += characters.charAt(Math.floor(Math.random() * characters.length));
+    }
+    document.getElementById('roomCode').innerText = 'Código de Sala: ' + code;
+}
+    </script>
+</head>
+
+<body>
+<div id="topContainer" style="width: 100%; position: fixed; top: 0; left: 0; display: flex; justify-content: center; background-color: rgba(0, 0, 0, 0.8); padding: 10px; z-index: 1000;">
+    <button onclick="window.location.href='/'" style="padding: 10px 20px; font-size: 16px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-family: 'Press Start 2P', cursive;">
+        Volver al menú
+    </button>
+</div>
+
+
+<div id="mainContainer" style="display: flex; flex-direction: column; margin-top: 60px;">
+    <div style="display: flex; flex: 1;">
+        <div id="grid" style="flex: 1; margin-right: 10px;"></div>
+
+        <div id="chatContainer" style="flex: 1; background-color: #2a2a2a; padding: 10px; border-radius: 8px;">
+            <div id="roomCode" style="font-weight: bold; margin-bottom: 10px; text-align: center; color: white;">
+                Código de Sala: <span id="roomCodeValue">Esperando...</span>
+            </div>
+
+
+            <div id="playerName" style="color: white;">Jugador: </div> <!-- Aquí se mostrará el nombre del jugador -->
+            <textarea id="chat" readonly style="width: 100%; height: 200px; background-color: #1a1a1a; color: white; border: none; border-radius: 5px; padding: 10px; resize: none;"></textarea>
+            <div id="messageContainer" style="margin-top: 10px;">
+                <input type="text" id="message" placeholder="Escribe un mensaje" style="width: 80%; padding: 10px; border-radius: 5px; border: 1px solid #555; background-color: #333; color: white;" />
+                <button onclick="sendMessage()" style="padding: 10px; border-radius: 5px; border: none; background-color: #555; color: white; cursor: pointer;">Enviar</button>
+            </div>
+            <button id="readyButton" onclick="toggleReady()" style="margin-top: 10px; padding: 10px; border-radius: 5px; border: none; background-color: #007bff; color: white; cursor: pointer;">Listo</button>
+            <div id="countdown" style="margin-top: 10px; color: white;"></div>
+        </div>
+    </div>
+</div>
+</body>
+</html>
